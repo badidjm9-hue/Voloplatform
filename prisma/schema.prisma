@@ -1,0 +1,588 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String?
+  firstName String
+  lastName  String
+  phone     String?
+  avatar    String?
+  dateOfBirth DateTime?
+  gender    String?
+  nationality String?
+  isVerified Boolean @default(false)
+  isActive  Boolean @default(true)
+  role      UserRole @default(CUSTOMER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Social login fields
+  googleId   String?
+  facebookId String?
+  appleId    String?
+
+  // Authentication tokens
+  emailVerificationToken String?
+  passwordResetToken     String?
+  passwordResetExpires   DateTime?
+
+  // Relations
+  bookings       Booking[]
+  reviews        Review[]
+  favorites      Favorite[]
+  messages       Message[]
+  payments       Payment[]
+  loyaltyPoints  LoyaltyPoint[]
+  notifications  Notification[]
+  preferences    UserPreference?
+  addresses      UserAddress[]
+  
+  @@map("users")
+}
+
+model UserPreference {
+  id                String  @id @default(cuid())
+  userId            String  @unique
+  language          String  @default("en")
+  currency          String  @default("USD")
+  timezone          String  @default("UTC")
+  notifications     Boolean @default(true)
+  emailNotifications Boolean @default(true)
+  smsNotifications  Boolean @default(false)
+  pushNotifications Boolean @default(true)
+  marketingEmails   Boolean @default(false)
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_preferences")
+}
+
+model UserAddress {
+  id       String  @id @default(cuid())
+  userId   String
+  type     AddressType @default(HOME)
+  firstName String
+  lastName  String
+  company   String?
+  address1  String
+  address2  String?
+  city      String
+  state     String
+  postalCode String
+  country   String
+  phone     String?
+  isDefault Boolean @default(false)
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_addresses")
+}
+
+model Hotel {
+  id           String    @id @default(cuid())
+  name         String
+  slug         String    @unique
+  description  String?
+  shortDescription String?
+  address      String
+  city         String
+  state        String?
+  country      String
+  postalCode   String?
+  latitude     Float?
+  longitude    Float?
+  phone        String?
+  email        String?
+  website      String?
+  starRating   Int?      // 1-5 stars
+  propertyType PropertyType
+  isActive     Boolean   @default(true)
+  isFeatured   Boolean   @default(false)
+  checkInTime  String    @default("15:00")
+  checkOutTime String    @default("11:00")
+  cancellationPolicy String?
+  
+  // External API integration
+  rateHawkId   String?
+  amadeusId    String?
+  expediaId    String?
+  bookingComId String?
+  hotelBedsId  String?
+  agodaId      String?
+  
+  // SEO and metadata
+  metaTitle    String?
+  metaDescription String?
+  metaKeywords String[]
+  
+  // Images and media
+  images       Image[]
+  amenities    HotelAmenity[]
+  
+  // Relations
+  rooms        Room[]
+  reviews      Review[]
+  policies     Policy[]
+  availability Availability[]
+  bookings     Booking[]
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  @@map("hotels")
+}
+
+model Image {
+  id          String  @id @default(cuid())
+  hotelId     String
+  roomId      String?
+  url         String
+  altText     String?
+  caption     String?
+  isPrimary   Boolean @default(false)
+  sortOrder   Int     @default(0)
+  
+  hotel Hotel @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  room  Room? @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  
+  @@map("images")
+}
+
+model Amenity {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  icon        String?
+  category    AmenityCategory
+  isActive    Boolean @default(true)
+  hotels      HotelAmenity[]
+  
+  @@map("amenities")
+}
+
+model HotelAmenity {
+  id       String @id @default(cuid())
+  hotelId  String
+  amenityId String
+  
+  hotel   Hotel   @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  amenity Amenity @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+  
+  @@unique([hotelId, amenityId])
+  @@map("hotel_amenities")
+}
+
+model Room {
+  id            String @id @default(cuid())
+  hotelId       String
+  name          String
+  description   String?
+  roomType      RoomType
+  size          Float? // in square meters
+  maxOccupancy  Int
+  bedType       String?
+  amenities     String[]
+  isActive      Boolean @default(true)
+  totalRooms    Int     @default(1)
+  availableRooms Int    @default(1)
+  
+  // Pricing
+  basePrice     Float
+  currency      String  @default("USD")
+  cleaningFee   Float?
+  serviceFee    Float?
+  
+  hotel      Hotel      @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  images     Image[]
+  availability Availability[]
+  bookings   Booking[]
+  reviews    Review[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("rooms")
+}
+
+model Availability {
+  id       String @id @default(cuid())
+  hotelId  String
+  roomId   String
+  date     DateTime
+  price    Float
+  availableRooms Int
+  isAvailable Boolean @default(true)
+  
+  // External API pricing
+  rateHawkPrice   Float?
+  amadeusPrice    Float?
+  expediaPrice    Float?
+  bookingComPrice Float?
+  hotelBedsPrice  Float?
+  agodaPrice      Float?
+  
+  hotel Hotel @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  room  Room  @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  
+  @@unique([hotelId, roomId, date])
+  @@map("availability")
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  userId          String
+  hotelId         String
+  roomId          String?
+  bookingReference String       @unique @default(cuid())
+  
+  // Guest information
+  guestFirstName  String
+  guestLastName   String
+  guestEmail      String
+  guestPhone      String?
+  guestAddress    String?
+  
+  // Booking details
+  checkInDate     DateTime
+  checkOutDate    DateTime
+  nights          Int
+  adults          Int
+  children        Int?
+  rooms           Int           @default(1)
+  
+  // Pricing
+  roomTotal       Float
+  taxes           Float         @default(0)
+  fees            Float         @default(0)
+  totalAmount     Float
+  currency        String        @default("USD")
+  
+  // Status and payment
+  status          BookingStatus @default(PENDING)
+  paymentStatus   PaymentStatus @default(PENDING)
+  paymentMethod   PaymentMethod?
+  paymentId       String?
+  
+  // External API booking
+  apiProvider     String?
+  externalBookingId String?
+  
+  // Additional information
+  specialRequests String?
+  cancellationReason String?
+  cancelledAt     DateTime?
+  checkInTime     String?
+  checkOutTime    String?
+  
+  user            User @relation(fields: [userId], references: [id])
+  hotel           Hotel @relation(fields: [hotelId], references: [id])
+  room            Room? @relation(fields: [roomId], references: [id])
+  payments        Payment[]
+  reviews         Review[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("bookings")
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  bookingId   String
+  userId      String
+  amount      Float
+  currency    String        @default("USD")
+  method      PaymentMethod
+  status      PaymentStatus @default(PENDING)
+  provider    String?       // stripe, paypal, etc.
+  providerId  String?       // Payment ID from provider
+  transactionId String?     // Transaction reference
+  description String?
+  metadata    Json?
+  
+  // Stripe specific
+  stripePaymentIntentId String?
+  stripeCustomerId      String?
+  
+  // PayPal specific
+  paypalOrderId         String?
+  paypalPayerId         String?
+  
+  booking      Booking @relation(fields: [bookingId], references: [id])
+  user         User    @relation(fields: [userId], references: [id])
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@map("payments")
+}
+
+model Review {
+  id            String @id @default(cuid())
+  userId        String
+  hotelId       String
+  roomId        String?
+  bookingId     String
+  
+  // Rating (1-5)
+  overallRating     Int
+  cleanlinessRating Int?
+  staffRating       Int?
+  facilitiesRating  Int?
+  valueRating       Int?
+  locationRating    Int?
+  comfortRating     Int?
+  
+  title        String?
+  comment      String?
+  pros         String[]?
+  cons         String[]?
+  
+  isVerified   Boolean @default(false)
+  isPublished  Boolean @default(true)
+  helpfulCount Int     @default(0)
+  
+  // External API review
+  externalReviewId String?
+  
+  user         User   @relation(fields: [userId], references: [id])
+  hotel        Hotel  @relation(fields: [hotelId], references: [id])
+  room         Room?  @relation(fields: [roomId], references: [id])
+  booking      Booking @relation(fields: [bookingId], references: [id])
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@unique([userId, bookingId])
+  @@map("reviews")
+}
+
+model Favorite {
+  id      String @id @default(cuid())
+  userId  String
+  hotelId String
+  
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, hotelId])
+  @@map("favorites")
+}
+
+model Policy {
+  id          String @id @default(cuid())
+  hotelId     String
+  type        PolicyType
+  title       String
+  description String
+  rules       Json? // Flexible JSON structure for complex rules
+  
+  hotel Hotel @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  
+  @@unique([hotelId, type])
+  @@map("policies")
+}
+
+model LoyaltyPoint {
+  id           String @id @default(cuid())
+  userId       String
+  bookingId    String?
+  points       Int
+  type         LoyaltyPointType
+  description  String?
+  expiresAt    DateTime?
+  isRedeemed   Boolean @default(false)
+  redeemedAt   DateTime?
+  
+  user         User    @relation(fields: [userId], references: [id])
+  
+  createdAt    DateTime @default(now())
+  
+  @@map("loyalty_points")
+}
+
+model Notification {
+  id      String @id @default(cuid())
+  userId  String
+  type    NotificationType
+  title   String
+  message String
+  data    Json? // Additional data for the notification
+  isRead  Boolean @default(false)
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@map("notifications")
+}
+
+model Message {
+  id        String @id @default(cuid())
+  senderId  String
+  receiverId String?
+  subject   String?
+  content   String
+  isRead    Boolean @default(false)
+  isSystem  Boolean @default(false)
+  
+  sender User @relation(fields: [senderId], references: [id])
+  
+  createdAt DateTime @default(now())
+  
+  @@map("messages")
+}
+
+model ApiLog {
+  id         String @id @default(cuid())
+  provider   String
+  endpoint   String
+  method     String
+  statusCode Int
+  responseTime Int // in milliseconds
+  requestData Json?
+  responseData Json?
+  error      String?
+  
+  createdAt DateTime @default(now())
+  
+  @@map("api_logs")
+}
+
+model Settings {
+  id    String @id @default(cuid())
+  key   String @unique
+  value Json
+  
+  @@map("settings")
+}
+
+// Enums
+enum UserRole {
+  CUSTOMER
+  HOST
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum AddressType {
+  HOME
+  WORK
+  OTHER
+}
+
+enum PropertyType {
+  HOTEL
+  APARTMENT
+  VILLA
+  RESORT
+  HOSTEL
+  BED_BREAKFAST
+  BOUTIQUE
+  BUSINESS
+  LUXURY
+  BUDGET
+  CHAIN
+  INDEPENDENT
+}
+
+enum AmenityCategory {
+  GENERAL
+  BUSINESS
+  ENTERTAINMENT
+  FAMILY
+  FITNESS
+  FOOD_DRINK
+  INTERNET
+  PARKING
+  PETS
+  POOL
+  SERVICES
+  TRANSPORTATION
+}
+
+enum RoomType {
+  STANDARD
+  DELUXE
+  SUITE
+  EXECUTIVE
+  PRESIDENTIAL
+  PENTHOUSE
+  FAMILY
+  STUDIO
+  APARTMENT
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  CHECKED_OUT
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  PAYPAL
+  STRIPE
+  BANK_TRANSFER
+  APPLE_PAY
+  GOOGLE_PAY
+  PAY_AT_PROPERTY
+}
+
+enum PolicyType {
+  CANCELLATION
+  CHECK_IN
+  CHECK_OUT
+  PETS
+  SMOKING
+  PARTY
+  CHILDREN
+  ADDITIONAL_GUESTS
+  DAMAGE
+  REFUND
+}
+
+enum LoyaltyPointType {
+  EARNED
+  BONUS
+  REFERRAL
+  REDEEMED
+  EXPIRED
+  ADJUSTED
+}
+
+enum NotificationType {
+  BOOKING_CONFIRMATION
+  BOOKING_CANCELLATION
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  CHECK_IN_REMINDER
+  CHECK_OUT_REMINDER
+  REVIEW_REQUEST
+  PROMOTION
+  SYSTEM
+}
